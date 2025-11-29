@@ -81,6 +81,20 @@ export default {
           busy: "rgb(239 68 68)",
           offline: "rgb(156 163 175)",
         },
+        success: {
+          DEFAULT: "hsl(var(--success) / <alpha-value>)",
+          foreground: "hsl(var(--success-foreground) / <alpha-value>)",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning) / <alpha-value>)",
+          foreground: "hsl(var(--warning-foreground) / <alpha-value>)",
+        },
+        threat: {
+          low: "hsl(var(--threat-low) / <alpha-value>)",
+          medium: "hsl(var(--threat-medium) / <alpha-value>)",
+          high: "hsl(var(--threat-high) / <alpha-value>)",
+          critical: "hsl(var(--threat-critical) / <alpha-value>)",
+        },
       },
       fontFamily: {
         sans: ["var(--font-sans)"],
