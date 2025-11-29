@@ -106,6 +106,11 @@ const HOSTING_PROVIDERS = [
   "Heroku", "Openshift", "EC2", "Compute Engine", "App Service"
 ];
 
+// Hosting providers commonly used by VPN services
+const VPN_HOSTING_PROVIDERS = [
+  "Zenlayer", "Softlayer", "Equinix", "Packet", "Vultr", "DigitalOcean", "OVH"
+];
+
 // Generate analysis from real geolocation data
 async function generateRealAnalysis(ip: string, geoData: any, abuseData: any): Promise<InsertIpAnalysis> {
   const ipVersion = getIpVersion(ip) || "IPv4";
@@ -127,8 +132,9 @@ async function generateRealAnalysis(ip: string, geoData: any, abuseData: any): P
   const orgLower = organization.toLowerCase();
   const ispLower = isp.toLowerCase();
   const isVpnProvider = VPN_PROVIDERS.some(v => orgLower.includes(v.toLowerCase()) || ispLower.includes(v.toLowerCase()));
+  const isVpnHosting = VPN_HOSTING_PROVIDERS.some(h => orgLower.includes(h.toLowerCase()) || ispLower.includes(h.toLowerCase()));
   const isHosting = HOSTING_PROVIDERS.some(h => orgLower.includes(h.toLowerCase()) || ispLower.includes(h.toLowerCase()));
-  const isVpn = isVpnProvider || orgLower.includes("vpn") || ispLower.includes("vpn");
+  const isVpn = isVpnProvider || isVpnHosting || orgLower.includes("vpn") || ispLower.includes("vpn");
   const isProxy = ispLower.includes("proxy") || (abuseData?.usageType === "Data Center");
   const isTor = abuseData?.isTor === true || false;
   const isDatacenter = isHosting || orgLower.includes("datacenter") || orgLower.includes("hosting");
