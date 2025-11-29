@@ -40,20 +40,24 @@ async function fetchAbuseIPDBData(ipAddress: string) {
     return null;
   }
   try {
+    const params = new URLSearchParams();
+    params.append('ipAddress', ipAddress);
+    params.append('maxAgeInDays', '90');
+    params.append('verbose', '');
+    
     const response = await fetch('https://api.abuseipdb.com/api/v2/check', {
       method: 'POST',
       headers: {
         'Key': ABUSEIPDB_API_KEY,
         'Accept': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: new URLSearchParams({
-        ipAddress,
-        maxAgeInDays: '90',
-        verbose: '',
-      }),
+      body: params.toString(),
     });
     if (!response.ok) {
       console.log(`AbuseIPDB API error for ${ipAddress}: ${response.status}`);
+      const errorText = await response.text();
+      console.log(`AbuseIPDB error response: ${errorText}`);
       return null;
     }
     const data = await response.json();
