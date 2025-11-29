@@ -104,6 +104,20 @@ async function generateRealAnalysis(ipAddress: string, ipinfoData: any, abuseipd
   };
 }
 
+const knownVpnProviders = [
+  "NordVPN", "ExpressVPN", "Surfshark", "CyberGhost", "Private Internet Access",
+  "ProtonVPN", "Mullvad", "IPVanish", "TunnelBear", "Windscribe",
+];
+
+const knownDatacenters = [
+  "Amazon", "AWS", "Google Cloud", "Microsoft Azure", "DigitalOcean",
+  "Linode", "Vultr", "OVH", "Hetzner", "Cloudflare",
+];
+
+const suspiciousIsps = [
+  "M247", "Choopa", "QuadraNet", "LeaseWeb", "ColoCrossing",
+];
+
 function generateMockAnalysis(ipAddress: string): InsertIpAnalysis {
   const ipVersion = getIpVersion(ipAddress) || "IPv4";
   
