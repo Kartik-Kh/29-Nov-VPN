@@ -87,7 +87,7 @@ async function fetchAbuseIPDB(ip: string) {
   }
 }
 
-// List of known VPN/proxy providers and datacenters
+// List of known VPN/proxy providers
 const VPN_PROVIDERS = [
   "NordVPN", "ExpressVPN", "Surfshark", "ProtonVPN", "CyberGhost",
   "IPVanish", "Private Internet Access", "PIA", "Windscribe", "TunnelBear",
@@ -96,6 +96,14 @@ const VPN_PROVIDERS = [
   "Avast VPN", "AVG VPN", "McAfee VPN", "Norton VPN", "Perfect Privacy",
   "Freedome", "Hotspot Shield", "Hide My Ass", "HMA", "VPNBook",
   "VPNGate", "Psiphon", "UltraVPN", "VPNArea", "ibVPN", "SlickVPN"
+];
+
+// Hosting/datacenter providers
+const HOSTING_PROVIDERS = [
+  "AWS", "Azure", "Google Cloud", "DigitalOcean", "Linode", "Vultr",
+  "Zenlayer", "Softlayer", "Equinix", "Rackspace", "OVH", "Hetzner",
+  "Scaleway", "Packet", "UpCloud", "Brightbox", "Joyent", "ProfitBricks",
+  "Heroku", "Openshift", "EC2", "Compute Engine", "App Service"
 ];
 
 // Generate analysis from real geolocation data
@@ -119,16 +127,17 @@ async function generateRealAnalysis(ip: string, geoData: any, abuseData: any): P
   const orgLower = organization.toLowerCase();
   const ispLower = isp.toLowerCase();
   const isVpnProvider = VPN_PROVIDERS.some(v => orgLower.includes(v.toLowerCase()) || ispLower.includes(v.toLowerCase()));
-  const isVpn = isVpnProvider || orgLower.includes("vpn") || ispLower.includes("vpn") || orgLower.includes("datacenter");
+  const isHosting = HOSTING_PROVIDERS.some(h => orgLower.includes(h.toLowerCase()) || ispLower.includes(h.toLowerCase()));
+  const isVpn = isVpnProvider || orgLower.includes("vpn") || ispLower.includes("vpn");
   const isProxy = ispLower.includes("proxy") || (abuseData?.usageType === "Data Center");
   const isTor = abuseData?.isTor === true || false;
-  const isDatacenter = orgLower.includes("aws") || orgLower.includes("azure") || orgLower.includes("google") || orgLower.includes("digitalocean") || orgLower.includes("linode");
+  const isDatacenter = isHosting || orgLower.includes("datacenter") || orgLower.includes("hosting");
   
   let riskScore = 0;
-  if (isVpn) riskScore = 70;
-  if (isProxy) riskScore = Math.max(riskScore, 65);
+  if (isVpn) riskScore = 75;
+  if (isProxy) riskScore = Math.max(riskScore, 70);
   if (isTor) riskScore = 95;
-  if (isDatacenter && !isVpn && !isProxy) riskScore = 35;
+  if (isDatacenter && !isVpn && !isProxy) riskScore = 45;
   if (abuseData?.abuseConfidenceScore) riskScore = Math.max(riskScore, Math.round(abuseData.abuseConfidenceScore * 0.9));
   if (abuseData?.totalReports > 3) riskScore = Math.min(100, riskScore + 15);
   
