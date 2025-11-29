@@ -14,15 +14,20 @@ import {
 
 // API Keys from environment
 const ABUSEIPDB_KEY = process.env.ABUSEIPDB_API_KEY;
-const MAXMIND_KEY = process.env.MAXMIND_API_KEY;
+const MAXMIND_KEY = process.env.MAXMIND_LICENSE_KEY;
 const IPINFO_KEY = process.env.IPINFO_API_KEY;
 const WHOISXML_KEY = process.env.WHOISXML_API_KEY;
+const APIIP_KEY = process.env.APIIP_API_KEY;
+const PYPROXY_ACCESS_KEY = process.env.PYPROXY_ACCESS_KEY;
+const PYPROXY_ACCESS_SECRET = process.env.PYPROXY_ACCESS_SECRET;
 
 console.log("API Keys loaded:", {
   abuseipdb: !!ABUSEIPDB_KEY,
   maxmind: !!MAXMIND_KEY,
   ipinfo: !!IPINFO_KEY,
   whoisxml: !!WHOISXML_KEY,
+  apiip: !!APIIP_KEY,
+  pyproxy: !!PYPROXY_ACCESS_KEY,
 });
 
 // Redis for caching (optional)
@@ -45,42 +50,81 @@ try {
 
 const CACHE_TTL = 3600; // 1 hour
 
-// Free IP Geolocation - using ipinfo.io
+// IPInfo - Free geolocation
 async function fetchIPGeolocation(ip: string) {
   try {
     const res = await fetch(`https://ipinfo.io/${ip}?token=a91115dbbe7daf`);
-    if (!res.ok) {
-      const text = await res.text();
-      console.log(`IPInfo HTTP ${res.status}: ${text}`);
-      return null;
-    }
+    if (!res.ok) return null;
     const data = await res.json();
-    console.log(`✓ IPInfo found for ${ip}: org=${data.org}, isp=${data.isp}, city=${data.city}, country=${data.country}`);
+    console.log(`✓ IPInfo for ${ip}:`, { country: data.country, city: data.city, org: data.org });
     return data;
   } catch (e) {
-    console.error("IPInfo error:", e);
     return null;
   }
 }
 
-// AbuseIPDB with correct format
+// PyProxy - VPN/Proxy detection
+async function fetchPyProxy(ip: string) {
+  if (!PYPROXY_ACCESS_KEY || !PYPROXY_ACCESS_SECRET) return null;
+  try {
+    const res = await fetch(`https://api.pyproxy.io/v1/ip_info`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${PYPROXY_ACCESS_KEY}`,
+      },
+      body: JSON.stringify({ ip, secret: PYPROXY_ACCESS_SECRET }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    console.log(`✓ PyProxy for ${ip}:`, { isVpn: data.is_vpn, isProxy: data.is_proxy });
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
+// APIIP - Geolocation and VPN detection
+async function fetchAPIIP(ip: string) {
+  if (!APIIP_KEY) return null;
+  try {
+    const res = await fetch(`https://apiip.net/api/check?ip=${ip}&apiKey=${APIIP_KEY}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    console.log(`✓ APIIP for ${ip}:`, { country: data.country_name, city: data.city, isVpn: data.is_vpn });
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
+// WhoisXML API
+async function fetchWhoisXML(ip: string) {
+  if (!WHOISXML_KEY) return null;
+  try {
+    const res = await fetch(`https://ip-whois-api.whoisxmlapi.com/api/v1?apiKey=${WHOISXML_KEY}&ipv4=${ip}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    console.log(`✓ WhoisXML for ${ip}:`, { org: data.result?.organization });
+    return data.result || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// AbuseIPDB
 async function fetchAbuseIPDB(ip: string) {
   if (!ABUSEIPDB_KEY) return null;
   try {
-    const res = await fetch(`https://api.abuseipdb.com/api/v2/check`, {
-      method: "GET",
+    const res = await fetch(`https://api.abuseipdb.com/api/v2/check?ipAddress=${ip}&maxAgeInDays=90&verbose`, {
       headers: {
         Key: ABUSEIPDB_KEY,
         Accept: "application/json",
       },
-      body: new URLSearchParams({ ipAddress: ip, maxAgeInDays: "90" }),
     });
-    if (!res.ok) {
-      console.log(`AbuseIPDB ${res.status}`);
-      return null;
-    }
+    if (!res.ok) return null;
     const data = await res.json();
-    console.log(`✓ AbuseIPDB for ${ip}:`, data.data);
+    console.log(`✓ AbuseIPDB for ${ip}:`, { score: data.data?.abuseConfidenceScore, isTor: data.data?.isTor });
     return data.data || null;
   } catch (e) {
     return null;
@@ -111,31 +155,33 @@ const VPN_HOSTING_PROVIDERS = [
   "Zenlayer", "Softlayer", "Equinix", "Packet", "Vultr", "DigitalOcean", "OVH"
 ];
 
-// Generate analysis from real geolocation data
-async function generateRealAnalysis(ip: string, geoData: any, abuseData: any): Promise<InsertIpAnalysis> {
+// Generate analysis from real data
+async function generateRealAnalysis(ip: string, geoData: any, abuseData: any, pyProxyData: any, apiipData: any): Promise<InsertIpAnalysis> {
   const ipVersion = getIpVersion(ip) || "IPv4";
   
-  // Parse location data
-  const loc = geoData?.loc?.split(",") || [0, 0];
-  const country = geoData?.country || "Unknown";
+  // Parse location data from multiple sources
+  const loc = (geoData?.loc || apiipData?.latitude ? `${apiipData?.latitude},${apiipData?.longitude}` : "0,0").split(",") || [0, 0];
+  const country = geoData?.country || apiipData?.country_name || "Unknown";
   const countryCode = country;
-  const city = geoData?.city || "Unknown";
+  const city = geoData?.city || apiipData?.city || "Unknown";
   const region = geoData?.region || city;
   const latitude = parseFloat(loc[0]) || 0;
   const longitude = parseFloat(loc[1]) || 0;
   const organization = geoData?.org || "Unknown";
-  const isp = organization.split(" ").slice(1).join(" ") || "Unknown";
+  const isp = geoData?.isp || organization.split(" ").slice(1).join(" ") || "Unknown";
   const asn = geoData?.asn || "Unknown";
   const timezone = geoData?.timezone || "UTC";
   
-  // VPN/Proxy detection - check organization and ISP for known providers
+  // VPN/Proxy detection from multiple sources
   const orgLower = organization.toLowerCase();
   const ispLower = isp.toLowerCase();
   const isVpnProvider = VPN_PROVIDERS.some(v => orgLower.includes(v.toLowerCase()) || ispLower.includes(v.toLowerCase()));
   const isVpnHosting = VPN_HOSTING_PROVIDERS.some(h => orgLower.includes(h.toLowerCase()) || ispLower.includes(h.toLowerCase()));
   const isHosting = HOSTING_PROVIDERS.some(h => orgLower.includes(h.toLowerCase()) || ispLower.includes(h.toLowerCase()));
-  const isVpn = isVpnProvider || isVpnHosting || orgLower.includes("vpn") || ispLower.includes("vpn");
-  const isProxy = ispLower.includes("proxy") || (abuseData?.usageType === "Data Center");
+  
+  // Combine detection from PyProxy, APIIP, AbuseIPDB and provider lists
+  const isVpn = isVpnProvider || isVpnHosting || pyProxyData?.is_vpn === true || apiipData?.is_vpn === "true" || orgLower.includes("vpn") || ispLower.includes("vpn");
+  const isProxy = pyProxyData?.is_proxy === true || apiipData?.is_proxy === "true" || ispLower.includes("proxy") || (abuseData?.usageType === "Data Center");
   const isTor = abuseData?.isTor === true || false;
   const isDatacenter = isHosting || orgLower.includes("datacenter") || orgLower.includes("hosting");
   
@@ -239,17 +285,20 @@ export async function registerRoutes(
         }
       }
       
-      // Fetch from free geolocation API and optional AbuseIPDB
-      const [geoData, abuseData] = await Promise.all([
+      // Fetch from all available APIs
+      const [geoData, abuseData, pyProxyData, apiipData, whoisData] = await Promise.all([
         fetchIPGeolocation(ipAddress),
         fetchAbuseIPDB(ipAddress),
+        fetchPyProxy(ipAddress),
+        fetchAPIIP(ipAddress),
+        fetchWhoisXML(ipAddress),
       ]);
       
-      const hasRealData = !!geoData;
+      const hasRealData = !!geoData || !!apiipData;
       
       let analysisData: InsertIpAnalysis;
       if (hasRealData) {
-        analysisData = await generateRealAnalysis(ipAddress, geoData, abuseData);
+        analysisData = await generateRealAnalysis(ipAddress, geoData, abuseData, pyProxyData, apiipData);
       } else {
         // Fallback to mock
         analysisData = {
