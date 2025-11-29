@@ -12,6 +12,10 @@ const MONGODB_URL = process.env.MONGODB_URI || process.env.DATABASE_URL || "mong
 
 let useDatabase = false;
 
+// In-memory storage as fallback
+const memoryAnalyses = new Map<string, IpAnalysis>();
+const memoryWhois = new Map<string, WhoisRecord>();
+
 const analysisSchema = new mongoose.Schema({
   ipAddress: String,
   ipVersion: String,
@@ -82,17 +86,25 @@ class MongoStorage implements IStorage {
   }
 
   async createAnalysis(insertAnalysis: InsertIpAnalysis): Promise<IpAnalysis> {
-    if (!useDatabase) {
-      return {
-        ...insertAnalysis,
-        id: randomUUID(),
-        isp: insertAnalysis.isp ?? null,
-        organization: insertAnalysis.organization ?? null,
-        timezone: insertAnalysis.timezone ?? null,
-      } as IpAnalysis;
+    const id = randomUUID();
+    const analysis: IpAnalysis = {
+      ...insertAnalysis,
+      id,
+      isp: insertAnalysis.isp ?? null,
+      organization: insertAnalysis.organization ?? null,
+      timezone: insertAnalysis.timezone ?? null,
+    } as IpAnalysis;
+    
+    memoryAnalyses.set(id, analysis);
+    
+    if (!useDatabase) return analysis;
+    
+    try {
+      const doc = await AnalysisModel.create(insertAnalysis);
+      return { ...doc.toObject(), id: doc._id.toString() } as IpAnalysis;
+    } catch (error) {
+      return analysis;
     }
-    const doc = await AnalysisModel.create(insertAnalysis);
-    return { ...doc.toObject(), id: doc._id.toString() } as IpAnalysis;
   }
 
   async getAnalysis(id: string): Promise<IpAnalysis | undefined> {
@@ -108,9 +120,15 @@ class MongoStorage implements IStorage {
   }
 
   async getAllAnalyses(): Promise<IpAnalysis[]> {
-    if (!useDatabase) return [];
-    const docs = await AnalysisModel.find().sort({ analyzedAt: -1 });
-    return docs.map((doc) => ({ ...doc.toObject(), id: doc._id.toString() } as IpAnalysis));
+    if (useDatabase) {
+      try {
+        const docs = await AnalysisModel.find().sort({ analyzedAt: -1 });
+        return docs.map((doc) => ({ ...doc.toObject(), id: doc._id.toString() } as IpAnalysis));
+      } catch {
+        return Array.from(memoryAnalyses.values()).sort((a, b) => new Date(b.analyzedAt).getTime() - new Date(a.analyzedAt).getTime());
+      }
+    }
+    return Array.from(memoryAnalyses.values()).sort((a, b) => new Date(b.analyzedAt).getTime() - new Date(a.analyzedAt).getTime());
   }
 
   async deleteAnalysis(id: string): Promise<boolean> {
@@ -120,29 +138,37 @@ class MongoStorage implements IStorage {
   }
 
   async createWhoisRecord(insertRecord: InsertWhoisRecord): Promise<WhoisRecord> {
-    if (!useDatabase) {
-      return {
-        ...insertRecord,
-        id: randomUUID(),
-        domain: insertRecord.domain ?? null,
-        registrar: insertRecord.registrar ?? null,
-        registrantName: insertRecord.registrantName ?? null,
-        registrantOrg: insertRecord.registrantOrg ?? null,
-        registrantCountry: insertRecord.registrantCountry ?? null,
-        createdDate: insertRecord.createdDate ?? null,
-        updatedDate: insertRecord.updatedDate ?? null,
-        expiresDate: insertRecord.expiresDate ?? null,
-        nameServers: insertRecord.nameServers ?? null,
-        netRange: insertRecord.netRange ?? null,
-        netName: insertRecord.netName ?? null,
-        netHandle: insertRecord.netHandle ?? null,
-        originAs: insertRecord.originAs ?? null,
-        abuseContact: insertRecord.abuseContact ?? null,
-        techContact: insertRecord.techContact ?? null,
-      } as WhoisRecord;
+    const id = randomUUID();
+    const whois: WhoisRecord = {
+      ...insertRecord,
+      id,
+      domain: insertRecord.domain ?? null,
+      registrar: insertRecord.registrar ?? null,
+      registrantName: insertRecord.registrantName ?? null,
+      registrantOrg: insertRecord.registrantOrg ?? null,
+      registrantCountry: insertRecord.registrantCountry ?? null,
+      createdDate: insertRecord.createdDate ?? null,
+      updatedDate: insertRecord.updatedDate ?? null,
+      expiresDate: insertRecord.expiresDate ?? null,
+      nameServers: insertRecord.nameServers ?? null,
+      netRange: insertRecord.netRange ?? null,
+      netName: insertRecord.netName ?? null,
+      netHandle: insertRecord.netHandle ?? null,
+      originAs: insertRecord.originAs ?? null,
+      abuseContact: insertRecord.abuseContact ?? null,
+      techContact: insertRecord.techContact ?? null,
+    } as WhoisRecord;
+    
+    memoryWhois.set(insertRecord.ipAddress, whois);
+    
+    if (!useDatabase) return whois;
+    
+    try {
+      const doc = await WhoisModel.create(insertRecord);
+      return { ...doc.toObject(), id: doc._id.toString() } as WhoisRecord;
+    } catch (error) {
+      return whois;
     }
-    const doc = await WhoisModel.create(insertRecord);
-    return { ...doc.toObject(), id: doc._id.toString() } as WhoisRecord;
   }
 
   async getWhoisByIp(ipAddress: string): Promise<WhoisRecord | undefined> {
@@ -152,8 +178,18 @@ class MongoStorage implements IStorage {
   }
 
   async getStats(): Promise<ScanStats> {
-    if (!useDatabase) return { totalScans: 0, threatsDetected: 0, cleanIps: 0, vpnsDetected: 0 };
-    const allAnalyses = await AnalysisModel.find();
+    let allAnalyses: any[] = [];
+    
+    if (useDatabase) {
+      try {
+        allAnalyses = await AnalysisModel.find();
+      } catch {
+        allAnalyses = Array.from(memoryAnalyses.values());
+      }
+    } else {
+      allAnalyses = Array.from(memoryAnalyses.values());
+    }
+    
     return {
       totalScans: allAnalyses.length,
       threatsDetected: allAnalyses.filter((a) => (a.riskScore ?? 0) >= 50).length,

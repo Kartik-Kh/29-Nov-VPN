@@ -18,8 +18,8 @@ interface WhoisFieldProps {
 }
 
 function WhoisField({ label, value }: WhoisFieldProps) {
-  // Don't render empty fields
-  if (!value) return null;
+  // Don't render empty fields or "Unknown" values
+  if (!value || value === "Unknown") return null;
   
   return (
     <div className="space-y-1">
