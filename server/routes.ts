@@ -15,18 +15,30 @@ const IPINFO_TOKEN = process.env.IPINFO_API_KEY;
 const ABUSEIPDB_API_KEY = process.env.ABUSEIPDB_API_KEY;
 
 async function fetchIpInfoData(ipAddress: string) {
-  if (!IPINFO_TOKEN) return null;
+  if (!IPINFO_TOKEN) {
+    console.log('No IPINFO_API_KEY configured');
+    return null;
+  }
   try {
     const response = await fetch(`https://ipinfo.io/${ipAddress}?token=${IPINFO_TOKEN}`);
-    if (!response.ok) return null;
-    return await response.json();
-  } catch {
+    if (!response.ok) {
+      console.log(`IPInfo API error for ${ipAddress}: ${response.status}`);
+      return null;
+    }
+    const data = await response.json();
+    console.log(`IPInfo data for ${ipAddress}:`, data);
+    return data;
+  } catch (error) {
+    console.error(`IPInfo fetch error for ${ipAddress}:`, error);
     return null;
   }
 }
 
 async function fetchAbuseIPDBData(ipAddress: string) {
-  if (!ABUSEIPDB_API_KEY) return null;
+  if (!ABUSEIPDB_API_KEY) {
+    console.log('No ABUSEIPDB_API_KEY configured');
+    return null;
+  }
   try {
     const response = await fetch('https://api.abuseipdb.com/api/v2/check', {
       method: 'POST',
@@ -40,10 +52,15 @@ async function fetchAbuseIPDBData(ipAddress: string) {
         verbose: '',
       }),
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.log(`AbuseIPDB API error for ${ipAddress}: ${response.status}`);
+      return null;
+    }
     const data = await response.json();
+    console.log(`AbuseIPDB data for ${ipAddress}:`, data);
     return data.data || null;
-  } catch {
+  } catch (error) {
+    console.error(`AbuseIPDB fetch error for ${ipAddress}:`, error);
     return null;
   }
 }
