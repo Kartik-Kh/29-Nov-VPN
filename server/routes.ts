@@ -176,8 +176,20 @@ async function generateRealAnalysis(ip: string, geoData: any, abuseData: any, py
   // VPN/Proxy detection from multiple sources
   const orgLower = organization.toLowerCase();
   const ispLower = isp.toLowerCase();
-  const isVpnProvider = VPN_PROVIDERS.some(v => orgLower.includes(v.toLowerCase()) || ispLower.includes(v.toLowerCase()));
-  const isVpnHosting = VPN_HOSTING_PROVIDERS.some(h => orgLower.includes(h.toLowerCase()) || ispLower.includes(h.toLowerCase()));
+  
+  // Detect which VPN provider was matched
+  let vpnProvider: string | null = null;
+  const matchedVpnProvider = VPN_PROVIDERS.find(v => orgLower.includes(v.toLowerCase()) || ispLower.includes(v.toLowerCase()));
+  const matchedVpnHosting = VPN_HOSTING_PROVIDERS.find(h => orgLower.includes(h.toLowerCase()) || ispLower.includes(h.toLowerCase()));
+  
+  if (matchedVpnProvider) {
+    vpnProvider = matchedVpnProvider;
+  } else if (matchedVpnHosting) {
+    vpnProvider = matchedVpnHosting;
+  }
+  
+  const isVpnProvider = !!matchedVpnProvider;
+  const isVpnHosting = !!matchedVpnHosting;
   const isHosting = HOSTING_PROVIDERS.some(h => orgLower.includes(h.toLowerCase()) || ispLower.includes(h.toLowerCase()));
   
   // Combine detection from PyProxy, APIIP, AbuseIPDB and provider lists
@@ -206,6 +218,7 @@ async function generateRealAnalysis(ip: string, geoData: any, abuseData: any, py
     isTor,
     isDatacenter,
     threatLevel,
+    vpnProvider,
     isp,
     organization,
     asn,
@@ -311,6 +324,7 @@ export async function registerRoutes(
           isTor: false,
           isDatacenter: false,
           threatLevel: "low",
+          vpnProvider: null,
           isp: "Unknown ISP",
           organization: "Unknown Organization",
           asn: "AS0000",

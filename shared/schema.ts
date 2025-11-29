@@ -13,6 +13,7 @@ export const ipAnalyses = pgTable("ip_analyses", {
   isTor: boolean("is_tor").notNull(),
   isDatacenter: boolean("is_datacenter").notNull(),
   threatLevel: text("threat_level").notNull(), // "low", "medium", "high", "critical"
+  vpnProvider: text("vpn_provider"), // Name of detected VPN provider (e.g., "Zenlayer", "TurboVPN")
   isp: text("isp"),
   organization: text("organization"),
   asn: text("asn"),

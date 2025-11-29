@@ -62,7 +62,7 @@ export function DetectionStatusCard({ analysis }: DetectionStatusCardProps) {
   ];
 
   const detectionBadges = [
-    { label: "VPN", active: analysis.isVpn },
+    { label: "VPN", active: analysis.isVpn, provider: analysis.vpnProvider },
     { label: "Proxy", active: analysis.isProxy },
     { label: "Tor", active: analysis.isTor },
     { label: "Datacenter", active: analysis.isDatacenter },
@@ -88,14 +88,14 @@ export function DetectionStatusCard({ analysis }: DetectionStatusCardProps) {
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="flex flex-wrap gap-2">
-          {detectionBadges.map(({ label, active }) => (
+          {detectionBadges.map(({ label, active, provider }) => (
             <Badge
               key={label}
               size="sm"
               variant={active ? "destructive" : "secondary"}
               data-testid={`badge-${label.toLowerCase()}-status`}
             >
-              {active ? `${label} Detected` : `No ${label}`}
+              {active ? (provider ? `${provider} (${label})` : `${label} Detected`) : `No ${label}`}
             </Badge>
           ))}
         </div>
