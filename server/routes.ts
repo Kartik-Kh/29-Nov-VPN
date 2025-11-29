@@ -30,22 +30,23 @@ console.log("API Keys loaded:", {
   pyproxy: !!PYPROXY_ACCESS_KEY,
 });
 
-// Redis for caching (optional)
+// Redis for caching
 let redis: Redis | null = null;
 try {
-  redis = new Redis({
-    host: process.env.REDIS_HOST || "127.0.0.1",
-    port: parseInt(process.env.REDIS_PORT || "6379"),
-    retryStrategy: () => null,
+  const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+  redis = new Redis(REDIS_URL, {
+    retryStrategy: (times) => Math.min(times * 50, 2000),
     maxRetriesPerRequest: 3,
+    enableReadyCheck: false,
+    enableOfflineQueue: false,
   });
-  redis.on("error", () => {
+  redis.on("error", (err) => {
     redis = null;
-    console.log("⚠ Redis unavailable");
+    console.log("⚠ Redis unavailable:", err.message);
   });
   redis.on("connect", () => console.log("✓ Connected to Redis"));
-} catch {
-  console.log("⚠ Redis unavailable");
+} catch (err) {
+  console.log("⚠ Redis unavailable:", err);
 }
 
 const CACHE_TTL = 3600; // 1 hour
