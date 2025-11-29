@@ -11,19 +11,98 @@ import {
   type InsertWhoisRecord,
 } from "@shared/schema";
 
-const knownVpnProviders = [
-  "NordVPN", "ExpressVPN", "Surfshark", "CyberGhost", "Private Internet Access",
-  "ProtonVPN", "Mullvad", "IPVanish", "TunnelBear", "Windscribe",
-];
+const IPINFO_TOKEN = process.env.IPINFO_API_KEY;
+const ABUSEIPDB_API_KEY = process.env.ABUSEIPDB_API_KEY;
 
-const knownDatacenters = [
-  "Amazon", "AWS", "Google Cloud", "Microsoft Azure", "DigitalOcean",
-  "Linode", "Vultr", "OVH", "Hetzner", "Cloudflare",
-];
+async function fetchIpInfoData(ipAddress: string) {
+  if (!IPINFO_TOKEN) return null;
+  try {
+    const response = await fetch(`https://ipinfo.io/${ipAddress}?token=${IPINFO_TOKEN}`);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
 
-const suspiciousIsps = [
-  "M247", "Choopa", "QuadraNet", "LeaseWeb", "ColoCrossing",
-];
+async function fetchAbuseIPDBData(ipAddress: string) {
+  if (!ABUSEIPDB_API_KEY) return null;
+  try {
+    const response = await fetch('https://api.abuseipdb.com/api/v2/check', {
+      method: 'POST',
+      headers: {
+        'Key': ABUSEIPDB_API_KEY,
+        'Accept': 'application/json',
+      },
+      body: new URLSearchParams({
+        ipAddress,
+        maxAgeInDays: '90',
+        verbose: '',
+      }),
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data.data || null;
+  } catch {
+    return null;
+  }
+}
+
+async function generateRealAnalysis(ipAddress: string, ipinfoData: any, abuseipdbData: any): Promise<InsertIpAnalysis> {
+  const ipVersion = getIpVersion(ipAddress) || "IPv4";
+  
+  const country = ipinfoData?.country || "Unknown";
+  const countryCode = ipinfoData?.country_code || "XX";
+  const city = ipinfoData?.city || "Unknown";
+  const region = ipinfoData?.region || city;
+  const [latStr, lngStr] = (ipinfoData?.loc || "0,0").split(",");
+  const latitude = parseFloat(latStr) || 0;
+  const longitude = parseFloat(lngStr) || 0;
+  const organization = ipinfoData?.org || "Unknown";
+  const isp = organization.split(" ").slice(1).join(" ") || organization;
+  const asn = ipinfoData?.asn?.split(" ")[0] || "Unknown";
+  const timezone = ipinfoData?.timezone || "UTC";
+  
+  const abuseScore = abuseipdbData?.abuseConfidenceScore || 0;
+  const totalReports = abuseipdbData?.totalReports || 0;
+  const usageType = abuseipdbData?.usageType || "unknown";
+  const isp_abusedb = abuseipdbData?.isp || isp;
+  
+  let riskScore = Math.round(abuseScore * 0.8);
+  const isVpn = usageType === "Data Center" || organization.toLowerCase().includes("vpn");
+  const isProxy = usageType === "Data Center" && totalReports > 0;
+  const isTor = false;
+  const isDatacenter = usageType === "Data Center" || usageType === "Content Delivery Network";
+  
+  if (isVpn) riskScore = Math.min(100, riskScore + 20);
+  if (isProxy) riskScore = Math.min(100, riskScore + 15);
+  if (isDatacenter && riskScore < 30) riskScore = Math.max(30, riskScore);
+  if (totalReports > 0) riskScore = Math.min(100, riskScore + Math.min(totalReports * 5, 25));
+  
+  const threatLevel = getThreatLevelFromScore(riskScore);
+  
+  return {
+    ipAddress,
+    ipVersion,
+    riskScore,
+    isVpn,
+    isProxy,
+    isTor,
+    isDatacenter,
+    threatLevel,
+    isp: isp_abusedb,
+    organization,
+    asn,
+    country,
+    countryCode,
+    city,
+    region,
+    latitude,
+    longitude,
+    timezone,
+    analyzedAt: new Date(),
+  };
+}
 
 function generateMockAnalysis(ipAddress: string): InsertIpAnalysis {
   const ipVersion = getIpVersion(ipAddress) || "IPv4";
@@ -246,7 +325,18 @@ export async function registerRoutes(
           });
         }
         
-        const analysisData = generateMockAnalysis(ipAddress);
+        const [ipinfoData, abuseipdbData] = await Promise.all([
+          fetchIpInfoData(ipAddress),
+          fetchAbuseIPDBData(ipAddress),
+        ]);
+        
+        let analysisData: InsertIpAnalysis;
+        if (ipinfoData || abuseipdbData) {
+          analysisData = await generateRealAnalysis(ipAddress, ipinfoData, abuseipdbData);
+        } else {
+          analysisData = generateMockAnalysis(ipAddress);
+        }
+        
         const analysis = await storage.createAnalysis(analysisData);
         
         const whoisData = generateMockWhois(ipAddress);
@@ -258,6 +348,7 @@ export async function registerRoutes(
           analysis,
           whois,
           cached: false,
+          realData: !!(ipinfoData || abuseipdbData),
         });
       } catch (error) {
         console.error("Analysis error:", error);
