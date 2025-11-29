@@ -1,0 +1,40 @@
+Proxy & VPN Detector Security & Bureau of Cyber Offenders are masking themselves with Proxv and VPN services . Desired Surveilance Police Solution: The solution should scan and detect the given IP address (Pv4/1Pv6) is Research Original IP or Proxy/VPN enabled IP address and also the application should fetch the Developmen n |details of Whois Records of respective IP or Website input
+# Proxy & VPN Detector — Full-Stack Blueprint
+## Tech Stack
+- **Frontend**: React 18 + TypeScript, Material-UI (v5), Chart.js, react-leaflet
+- **Backend**: Node.js 18, Express 5, MongoDB + Mongoose, Redis 7, Socket.io
+- **Auth**: JWT (HS256), bcrypt for password hashing
+- **Security**: express-rate-limit, helmet, Joi input validation, HTTPS/TLS
+- **DevOps**: Docker Compose, GitHub Actions CI, Jest & Supertest tests
+1. The Big Picture - What Problem We're Solving
+Problem: Websites need to detect if visitors are using VPNs/proxies to:
+
+Prevent fraud (fake accounts, payment fraud)
+Enforce geo-restrictions (content licensing)
+Stop automated bots and scrapers
+Comply with security policies
+Our Solution: A web application that analyzes IP addresses and determines if they're coming through a VPN/proxy or are genuine user IPs.
+
+2. How Detection Actually Works
+Think of it like a background check for IP addresses:
+Step 1: Gather Intelligence from Multiple Sources
+
+Like asking 3 different detectives about the same person
+Each API (IPQualityScore, AbuseIPDB, IPInfo) provides different clues:
+IPQualityScore: "This IP has VPN characteristics"
+AbuseIPDB: "This IP has been reported for abuse 50 times"
+IPInfo: "This IP belongs to a datacenter, not a home user"
+Step 2: Cross-Reference with Known Patterns
+
+Check WHOIS data (like looking up property ownership records)
+If the IP is registered to "NordVPN Inc." → obvious VPN
+If it's from AWS/DigitalOcean → likely a proxy server
+If it's from "Comcast Residential" → probably genuine
+Step 3: Calculate a Risk Score
+
+Combine all evidence into a 0-100 score
+0-40: Clean (normal home/office internet)
+40-70: Suspicious (might be VPN, needs review)
+70-100: VPN/Proxy detected (high confidence)
+3. The Caching Strategy - Why It's Fast
+The Problem: Checking APIs for every request is slow (2-5 seconds) and expensive
