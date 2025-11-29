@@ -52,25 +52,26 @@ async function fetchAbuseIPDB(ip: string) {
     return null;
   }
   try {
-    const params = new URLSearchParams();
-    params.append("ipAddress", ip);
-    params.append("maxAgeInDays", "90");
+    const body = new FormData();
+    body.append("ipAddress", ip);
+    body.append("maxAgeInDays", "90");
+    body.append("verbose", "");
     
     const res = await fetch("https://api.abuseipdb.com/api/v2/check", {
       method: "POST",
       headers: {
         Key: ABUSEIPDB_KEY,
         Accept: "application/json",
-        "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: params.toString(),
+      body,
     });
     if (!res.ok) {
-      console.log(`AbuseIPDB error: ${res.status} - ${res.statusText}`);
+      const text = await res.text();
+      console.log(`AbuseIPDB error ${res.status}: ${text}`);
       return null;
     }
     const data = await res.json();
-    console.log(`AbuseIPDB success for ${ip}:`, data.data);
+    console.log(`✓ AbuseIPDB success for ${ip}:`, data.data);
     return data.data || null;
   } catch (e) {
     console.error("AbuseIPDB fetch error:", e);
@@ -106,13 +107,18 @@ async function fetchIPInfo(ip: string) {
     return null;
   }
   try {
-    const res = await fetch(`https://ipinfo.io/${ip}?token=${IPINFO_KEY}`);
+    const res = await fetch(`https://ipinfo.io/json?access_token=${IPINFO_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ip }),
+    });
     if (!res.ok) {
-      console.log(`IPInfo error: ${res.status} - ${res.statusText}`);
+      const text = await res.text();
+      console.log(`IPInfo error ${res.status}: ${text}`);
       return null;
     }
     const data = await res.json();
-    console.log(`IPInfo success for ${ip}:`, data);
+    console.log(`✓ IPInfo success for ${ip}:`, data);
     return data;
   } catch (e) {
     console.error("IPInfo fetch error:", e);
