@@ -60,6 +60,12 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Import storage to ensure connection is initialized
+  const { storage } = await import("./storage");
+  
+  // Wait for storage to connect before registering routes
+  await storage.connect();
+  
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

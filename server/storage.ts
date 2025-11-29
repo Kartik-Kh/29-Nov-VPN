@@ -82,7 +82,15 @@ class MongoStorage implements IStorage {
   }
 
   async createAnalysis(insertAnalysis: InsertIpAnalysis): Promise<IpAnalysis> {
-    if (!useDatabase) return { ...insertAnalysis, id: randomUUID() };
+    if (!useDatabase) {
+      return {
+        ...insertAnalysis,
+        id: randomUUID(),
+        isp: insertAnalysis.isp ?? null,
+        organization: insertAnalysis.organization ?? null,
+        timezone: insertAnalysis.timezone ?? null,
+      } as IpAnalysis;
+    }
     const doc = await AnalysisModel.create(insertAnalysis);
     return { ...doc.toObject(), id: doc._id.toString() } as IpAnalysis;
   }
@@ -112,7 +120,27 @@ class MongoStorage implements IStorage {
   }
 
   async createWhoisRecord(insertRecord: InsertWhoisRecord): Promise<WhoisRecord> {
-    if (!useDatabase) return { ...insertRecord, id: randomUUID() };
+    if (!useDatabase) {
+      return {
+        ...insertRecord,
+        id: randomUUID(),
+        domain: insertRecord.domain ?? null,
+        registrar: insertRecord.registrar ?? null,
+        registrantName: insertRecord.registrantName ?? null,
+        registrantOrg: insertRecord.registrantOrg ?? null,
+        registrantCountry: insertRecord.registrantCountry ?? null,
+        createdDate: insertRecord.createdDate ?? null,
+        updatedDate: insertRecord.updatedDate ?? null,
+        expiresDate: insertRecord.expiresDate ?? null,
+        nameServers: insertRecord.nameServers ?? null,
+        netRange: insertRecord.netRange ?? null,
+        netName: insertRecord.netName ?? null,
+        netHandle: insertRecord.netHandle ?? null,
+        originAs: insertRecord.originAs ?? null,
+        abuseContact: insertRecord.abuseContact ?? null,
+        techContact: insertRecord.techContact ?? null,
+      } as WhoisRecord;
+    }
     const doc = await WhoisModel.create(insertRecord);
     return { ...doc.toObject(), id: doc._id.toString() } as WhoisRecord;
   }
@@ -128,8 +156,8 @@ class MongoStorage implements IStorage {
     const allAnalyses = await AnalysisModel.find();
     return {
       totalScans: allAnalyses.length,
-      threatsDetected: allAnalyses.filter((a) => a.riskScore >= 50).length,
-      cleanIps: allAnalyses.filter((a) => a.riskScore < 30).length,
+      threatsDetected: allAnalyses.filter((a) => (a.riskScore ?? 0) >= 50).length,
+      cleanIps: allAnalyses.filter((a) => (a.riskScore ?? 0) < 30).length,
       vpnsDetected: allAnalyses.filter((a) => a.isVpn).length,
     };
   }
