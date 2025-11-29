@@ -45,22 +45,19 @@ try {
 
 const CACHE_TTL = 3600; // 1 hour
 
-// Free IP Whois API - no key needed
-async function fetchIPWhois(ip: string) {
+// Free IP Geolocation - using ipinfo.io (free tier)
+async function fetchIPGeolocation(ip: string) {
   try {
-    const res = await fetch(`https://ipwhois.io/api/json/${ip}`, { timeout: 5000 });
+    const res = await fetch(`https://ipinfo.io/${ip}?token=e18da95a8bdf02`);
     if (!res.ok) {
-      console.log(`IPWhois HTTP ${res.status}`);
+      console.log(`IPInfo HTTP ${res.status}`);
       return null;
     }
     const data = await res.json();
-    if (data.success === true) {
-      console.log(`✓ IPWhois found for ${ip}: org=${data.org}, isp=${data.isp}, is_proxy=${data.is_proxy}, is_vpn=${data.is_vpn}`);
-      return data;
-    }
-    return null;
+    console.log(`✓ IPInfo found for ${ip}: org=${data.org}, city=${data.city}, country=${data.country}`);
+    return data;
   } catch (e) {
-    console.error("IPWhois error:", e);
+    console.error("IPInfo error:", e);
     return null;
   }
 }
@@ -100,29 +97,31 @@ const VPN_PROVIDERS = [
   "VPNGate", "Psiphon", "UltraVPN", "VPNArea", "ibVPN", "SlickVPN"
 ];
 
-// Generate analysis from real IPWhois data
-async function generateRealAnalysis(ip: string, whoisData: any, abuseData: any): Promise<InsertIpAnalysis> {
+// Generate analysis from real geolocation data
+async function generateRealAnalysis(ip: string, geoData: any, abuseData: any): Promise<InsertIpAnalysis> {
   const ipVersion = getIpVersion(ip) || "IPv4";
   
-  const country = whoisData?.country_name || "Unknown";
-  const countryCode = whoisData?.country_code || "XX";
-  const city = whoisData?.city || "Unknown";
-  const region = whoisData?.region || city;
-  const latitude = parseFloat(whoisData?.latitude || 0);
-  const longitude = parseFloat(whoisData?.longitude || 0);
-  const organization = whoisData?.org || "Unknown";
-  const isp = whoisData?.isp || "Unknown";
-  const asn = whoisData?.asn?.toString() || "Unknown";
-  const timezone = whoisData?.timezone?.name || "UTC";
+  // Parse location data
+  const loc = geoData?.loc?.split(",") || [0, 0];
+  const country = geoData?.country || "Unknown";
+  const countryCode = country;
+  const city = geoData?.city || "Unknown";
+  const region = geoData?.region || city;
+  const latitude = parseFloat(loc[0]) || 0;
+  const longitude = parseFloat(loc[1]) || 0;
+  const organization = geoData?.org || "Unknown";
+  const isp = organization.split(" ").slice(1).join(" ") || "Unknown";
+  const asn = geoData?.asn || "Unknown";
+  const timezone = geoData?.timezone || "UTC";
   
-  // VPN/Proxy detection from ipwhois flags and provider list
+  // VPN/Proxy detection - check organization and ISP for known providers
   const orgLower = organization.toLowerCase();
   const ispLower = isp.toLowerCase();
   const isVpnProvider = VPN_PROVIDERS.some(v => orgLower.includes(v.toLowerCase()) || ispLower.includes(v.toLowerCase()));
-  const isVpn = isVpnProvider || whoisData?.is_vpn === true || orgLower.includes("vpn") || ispLower.includes("vpn");
-  const isProxy = whoisData?.is_proxy === true || (abuseData?.usageType === "Data Center") || ispLower.includes("proxy");
-  const isTor = whoisData?.is_tor === true || abuseData?.isTor === true || false;
-  const isDatacenter = whoisData?.is_datacenter === true || orgLower.includes("aws") || orgLower.includes("azure") || orgLower.includes("google") || orgLower.includes("digitalocean");
+  const isVpn = isVpnProvider || orgLower.includes("vpn") || ispLower.includes("vpn") || orgLower.includes("datacenter");
+  const isProxy = ispLower.includes("proxy") || (abuseData?.usageType === "Data Center");
+  const isTor = abuseData?.isTor === true || false;
+  const isDatacenter = orgLower.includes("aws") || orgLower.includes("azure") || orgLower.includes("google") || orgLower.includes("digitalocean") || orgLower.includes("linode");
   
   let riskScore = 0;
   if (isVpn) riskScore = 70;
@@ -224,17 +223,17 @@ export async function registerRoutes(
         }
       }
       
-      // Fetch from free IPWhois API and optional AbuseIPDB
-      const [whoisData, abuseData] = await Promise.all([
-        fetchIPWhois(ipAddress),
+      // Fetch from free geolocation API and optional AbuseIPDB
+      const [geoData, abuseData] = await Promise.all([
+        fetchIPGeolocation(ipAddress),
         fetchAbuseIPDB(ipAddress),
       ]);
       
-      const hasRealData = !!whoisData;
+      const hasRealData = !!geoData;
       
       let analysisData: InsertIpAnalysis;
       if (hasRealData) {
-        analysisData = await generateRealAnalysis(ipAddress, whoisData, abuseData);
+        analysisData = await generateRealAnalysis(ipAddress, geoData, abuseData);
       } else {
         // Fallback to mock
         analysisData = {
