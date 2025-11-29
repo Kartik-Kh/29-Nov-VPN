@@ -1,4 +1,8 @@
-import mongoose from "mongoose";
+import { drizzle } from "drizzle-orm/neon-http";
+import { neon } from "@neondatabase/serverless";
+import * as schema from "@shared/schema";
+import { eq } from "drizzle-orm";
+import { randomUUID } from "crypto";
 import {
   type IpAnalysis,
   type InsertIpAnalysis,
@@ -6,56 +10,8 @@ import {
   type InsertWhoisRecord,
   type ScanStats,
 } from "@shared/schema";
-import { randomUUID } from "crypto";
 
-const MONGODB_URL = process.env.DATABASE_URL || "mongodb://localhost/vpn-detector";
-
-let useDatabase = false;
-
-const analysisSchema = new mongoose.Schema({
-  ipAddress: String,
-  ipVersion: String,
-  riskScore: Number,
-  isVpn: Boolean,
-  isProxy: Boolean,
-  isTor: Boolean,
-  isDatacenter: Boolean,
-  threatLevel: String,
-  isp: String,
-  organization: String,
-  asn: String,
-  country: String,
-  countryCode: String,
-  city: String,
-  region: String,
-  latitude: Number,
-  longitude: Number,
-  timezone: String,
-  analyzedAt: Date,
-}, { timestamps: true });
-
-const whoisSchema = new mongoose.Schema({
-  ipAddress: String,
-  domain: String,
-  registrar: String,
-  registrantName: String,
-  registrantOrg: String,
-  registrantCountry: String,
-  createdDate: String,
-  updatedDate: String,
-  expiresDate: String,
-  nameServers: [String],
-  netRange: String,
-  netName: String,
-  netHandle: String,
-  originAs: String,
-  abuseContact: String,
-  techContact: String,
-  fetchedAt: Date,
-}, { timestamps: true });
-
-const AnalysisModel = mongoose.model("Analysis", analysisSchema);
-const WhoisModel = mongoose.model("Whois", whoisSchema);
+let db: any = null;
 
 export interface IStorage {
   connect(): Promise<void>;
@@ -69,69 +25,84 @@ export interface IStorage {
   getStats(): Promise<ScanStats>;
 }
 
-class MongoStorage implements IStorage {
+class PostgresStorage implements IStorage {
   async connect(): Promise<void> {
     try {
-      await mongoose.connect(MONGODB_URL);
-      useDatabase = true;
-      console.log("✓ Connected to MongoDB");
+      const sql = neon(process.env.DATABASE_URL!);
+      db = drizzle(sql, { schema });
+      console.log("✓ Connected to PostgreSQL");
     } catch (error) {
-      console.log("⚠ MongoDB unavailable, using in-memory storage");
-      useDatabase = false;
+      console.log("⚠ PostgreSQL unavailable, using in-memory fallback");
+      db = null;
     }
   }
 
   async createAnalysis(insertAnalysis: InsertIpAnalysis): Promise<IpAnalysis> {
-    if (!useDatabase) return { ...insertAnalysis, id: randomUUID() };
-    const doc = await AnalysisModel.create(insertAnalysis);
-    return { ...doc.toObject(), id: doc._id.toString() } as IpAnalysis;
+    const id = randomUUID();
+    if (!db) return { ...insertAnalysis, id } as IpAnalysis;
+    const result = await db.insert(schema.ipAnalyses).values({ ...insertAnalysis, id }).returning();
+    return result[0] as IpAnalysis;
   }
 
   async getAnalysis(id: string): Promise<IpAnalysis | undefined> {
-    if (!useDatabase) return undefined;
-    const doc = await AnalysisModel.findById(id);
-    return doc ? ({ ...doc.toObject(), id: doc._id.toString() } as IpAnalysis) : undefined;
+    if (!db) return undefined;
+    const result = await db.select().from(schema.ipAnalyses).where(eq(schema.ipAnalyses.id, id)).limit(1);
+    return result[0] as IpAnalysis | undefined;
   }
 
   async getAnalysisByIp(ipAddress: string): Promise<IpAnalysis | undefined> {
-    if (!useDatabase) return undefined;
-    const doc = await AnalysisModel.findOne({ ipAddress }).sort({ analyzedAt: -1 });
-    return doc ? ({ ...doc.toObject(), id: doc._id.toString() } as IpAnalysis) : undefined;
+    if (!db) return undefined;
+    const result = await db
+      .select()
+      .from(schema.ipAnalyses)
+      .where(eq(schema.ipAnalyses.ipAddress, ipAddress))
+      .orderBy(schema.ipAnalyses.analyzedAt)
+      .limit(1);
+    return result[0] as IpAnalysis | undefined;
   }
 
   async getAllAnalyses(): Promise<IpAnalysis[]> {
-    if (!useDatabase) return [];
-    const docs = await AnalysisModel.find().sort({ analyzedAt: -1 });
-    return docs.map((doc) => ({ ...doc.toObject(), id: doc._id.toString() } as IpAnalysis));
+    if (!db) return [];
+    return await db.select().from(schema.ipAnalyses).orderBy(schema.ipAnalyses.analyzedAt);
   }
 
   async deleteAnalysis(id: string): Promise<boolean> {
-    if (!useDatabase) return false;
-    const result = await AnalysisModel.deleteOne({ _id: id });
-    return result.deletedCount > 0;
+    if (!db) return false;
+    const result = await db.delete(schema.ipAnalyses).where(eq(schema.ipAnalyses.id, id));
+    return true;
   }
 
   async createWhoisRecord(insertRecord: InsertWhoisRecord): Promise<WhoisRecord> {
-    if (!useDatabase) return { ...insertRecord, id: randomUUID() };
-    const doc = await WhoisModel.create(insertRecord);
-    return { ...doc.toObject(), id: doc._id.toString() } as WhoisRecord;
+    const id = randomUUID();
+    if (!db) return { ...insertRecord, id } as WhoisRecord;
+    const result = await db.insert(schema.whoisRecords).values({ ...insertRecord, id }).returning();
+    return result[0] as WhoisRecord;
   }
 
   async getWhoisByIp(ipAddress: string): Promise<WhoisRecord | undefined> {
-    if (!useDatabase) return undefined;
-    const doc = await WhoisModel.findOne({ ipAddress }).sort({ fetchedAt: -1 });
-    return doc ? ({ ...doc.toObject(), id: doc._id.toString() } as WhoisRecord) : undefined;
+    if (!db) return undefined;
+    const result = await db
+      .select()
+      .from(schema.whoisRecords)
+      .where(eq(schema.whoisRecords.ipAddress, ipAddress))
+      .orderBy(schema.whoisRecords.fetchedAt)
+      .limit(1);
+    return result[0] as WhoisRecord | undefined;
   }
 
   async getStats(): Promise<ScanStats> {
-    if (!useDatabase) return { totalScans: 0, threatsDetected: 0, cleanIps: 0, vpnsDetected: 0 };
-    const all = await AnalysisModel.find();
-    const threatsDetected = all.filter((a) => a.isVpn || a.isProxy || a.isTor).length;
-    const cleanIps = all.filter((a) => !a.isVpn && !a.isProxy && !a.isTor).length;
-    const vpnsDetected = all.filter((a) => a.isVpn).length;
-
-    return { totalScans: all.length, threatsDetected, cleanIps, vpnsDetected };
+    if (!db) return { totalScans: 0, threatsDetected: 0, cleanIps: 0, vpnsDetected: 0 };
+    const allAnalyses = await db.select().from(schema.ipAnalyses);
+    return {
+      totalScans: allAnalyses.length,
+      threatsDetected: allAnalyses.filter((a: any) => a.riskScore >= 50).length,
+      cleanIps: allAnalyses.filter((a: any) => a.riskScore < 30).length,
+      vpnsDetected: allAnalyses.filter((a: any) => a.isVpn).length,
+    };
   }
 }
 
-export const storage = new MongoStorage();
+export const storage = new PostgresStorage();
+
+// Initialize storage connection
+storage.connect();
