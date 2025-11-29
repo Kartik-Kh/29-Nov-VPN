@@ -45,16 +45,17 @@ try {
 
 const CACHE_TTL = 3600; // 1 hour
 
-// Free IP Geolocation - using ipinfo.io (free tier)
+// Free IP Geolocation - using ipinfo.io
 async function fetchIPGeolocation(ip: string) {
   try {
-    const res = await fetch(`https://ipinfo.io/${ip}?token=e18da95a8bdf02`);
+    const res = await fetch(`https://ipinfo.io/${ip}?token=a91115dbbe7daf`);
     if (!res.ok) {
-      console.log(`IPInfo HTTP ${res.status}`);
+      const text = await res.text();
+      console.log(`IPInfo HTTP ${res.status}: ${text}`);
       return null;
     }
     const data = await res.json();
-    console.log(`✓ IPInfo found for ${ip}: org=${data.org}, city=${data.city}, country=${data.country}`);
+    console.log(`✓ IPInfo found for ${ip}: org=${data.org}, isp=${data.isp}, city=${data.city}, country=${data.country}`);
     return data;
   } catch (e) {
     console.error("IPInfo error:", e);
