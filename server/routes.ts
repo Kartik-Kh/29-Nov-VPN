@@ -45,148 +45,96 @@ try {
 
 const CACHE_TTL = 3600; // 1 hour
 
-// Fetch real data from 4 APIs
-async function fetchAbuseIPDB(ip: string) {
-  if (!ABUSEIPDB_KEY) {
-    console.log("AbuseIPDB: No API key");
+// Free IP API - no key needed
+async function fetchIPAPI(ip: string) {
+  try {
+    const res = await fetch(`https://ip-api.com/json/${ip}?fields=status,country,countryCode,city,region,lat,lon,isp,org,as,timezone,mobile,proxy,hosting`);
+    if (!res.ok) {
+      console.log(`IP-API HTTP ${res.status}`);
+      return null;
+    }
+    const data = await res.json();
+    if (data.status === "success") {
+      console.log(`✓ IP-API found for ${ip}: org=${data.org}, isp=${data.isp}, proxy=${data.proxy}`);
+      return data;
+    } else {
+      console.log(`IP-API failed: ${data.message}`);
+    }
+    return null;
+  } catch (e) {
+    console.error("IP-API error:", e);
     return null;
   }
+}
+
+// AbuseIPDB with correct format
+async function fetchAbuseIPDB(ip: string) {
+  if (!ABUSEIPDB_KEY) return null;
   try {
-    const body = new FormData();
-    body.append("ipAddress", ip);
-    body.append("maxAgeInDays", "90");
-    body.append("verbose", "");
-    
-    const res = await fetch("https://api.abuseipdb.com/api/v2/check", {
-      method: "POST",
+    const res = await fetch(`https://api.abuseipdb.com/api/v2/check`, {
+      method: "GET",
       headers: {
         Key: ABUSEIPDB_KEY,
         Accept: "application/json",
       },
-      body,
+      body: new URLSearchParams({ ipAddress: ip, maxAgeInDays: "90" }),
     });
     if (!res.ok) {
-      const text = await res.text();
-      console.log(`AbuseIPDB error ${res.status}: ${text}`);
+      console.log(`AbuseIPDB ${res.status}`);
       return null;
     }
     const data = await res.json();
-    console.log(`✓ AbuseIPDB success for ${ip}:`, data.data);
+    console.log(`✓ AbuseIPDB for ${ip}:`, data.data);
     return data.data || null;
   } catch (e) {
-    console.error("AbuseIPDB fetch error:", e);
     return null;
   }
 }
 
-async function fetchMaxMind(ip: string) {
-  if (!MAXMIND_KEY) {
-    console.log("MaxMind: No API key");
-    return null;
-  }
-  try {
-    const res = await fetch(`https://geoip.maxmind.com/geoip/v2.1/city/${ip}`, {
-      headers: { Authorization: `Basic ${Buffer.from(`account_id:${MAXMIND_KEY}`).toString("base64")}` },
-    });
-    if (!res.ok) {
-      console.log(`MaxMind error: ${res.status} - ${res.statusText}`);
-      return null;
-    }
-    const data = await res.json();
-    console.log(`MaxMind success for ${ip}:`, data);
-    return data;
-  } catch (e) {
-    console.error("MaxMind fetch error:", e);
-    return null;
-  }
-}
+// List of known VPN/proxy providers and datacenters
+const VPN_PROVIDERS = [
+  "NordVPN", "ExpressVPN", "Surfshark", "ProtonVPN", "CyberGhost",
+  "IPVanish", "Private Internet Access", "PIA", "Windscribe", "TunnelBear",
+  "Turbo VPN", "HotspotShield", "VyprVPN", "StrongVPN", "Mullvad", "turbo",
+  "IVPN", "PureVPN", "SaferVPN", "VPN Gate", "Astrill", "Bitdefender VPN",
+  "Avast VPN", "AVG VPN", "McAfee VPN", "Norton VPN", "Perfect Privacy",
+  "Freedome", "Hotspot Shield", "Hide My Ass", "HMA", "VPNBook",
+  "VPNGate", "Psiphon", "UltraVPN", "VPNArea", "ibVPN", "SlickVPN"
+];
 
-async function fetchIPInfo(ip: string) {
-  if (!IPINFO_KEY) {
-    console.log("IPInfo: No API key");
-    return null;
-  }
-  try {
-    const res = await fetch(`https://ipinfo.io/json?access_token=${IPINFO_KEY}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ip }),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      console.log(`IPInfo error ${res.status}: ${text}`);
-      return null;
-    }
-    const data = await res.json();
-    console.log(`✓ IPInfo success for ${ip}:`, data);
-    return data;
-  } catch (e) {
-    console.error("IPInfo fetch error:", e);
-    return null;
-  }
-}
-
-async function fetchWhoisXML(ip: string) {
-  if (!WHOISXML_KEY) {
-    console.log("WhoisXML: No API key");
-    return null;
-  }
-  try {
-    const res = await fetch(
-      `https://ip-whois-api.whoisxmlapi.com/api/v1?apiKey=${WHOISXML_KEY}&ipv4=${ip}`
-    );
-    if (!res.ok) {
-      console.log(`WhoisXML error: ${res.status} - ${res.statusText}`);
-      return null;
-    }
-    const data = await res.json();
-    console.log(`WhoisXML success for ${ip}:`, data);
-    return data;
-  } catch (e) {
-    console.error("WhoisXML fetch error:", e);
-    return null;
-  }
-}
-
-// Generate analysis from real API data
-async function generateRealAnalysis(
-  ip: string,
-  abuseData: any,
-  maxmindData: any,
-  ipinfoData: any,
-  whoisData: any
-): Promise<InsertIpAnalysis> {
+// Generate analysis from real IP-API data
+async function generateRealAnalysis(ip: string, ipApiData: any, abuseData: any): Promise<InsertIpAnalysis> {
   const ipVersion = getIpVersion(ip) || "IPv4";
   
-  // Primary source: MaxMind, fallback to IPInfo
-  const country = maxmindData?.country?.iso_code || ipinfoData?.country || "Unknown";
-  const countryCode = country;
-  const city = maxmindData?.city?.names?.en || ipinfoData?.city || "Unknown";
-  const region = maxmindData?.subdivisions?.[0]?.names?.en || ipinfoData?.region || city;
-  const latitude = maxmindData?.location?.latitude || parseFloat(ipinfoData?.loc?.split(",")?.[0]) || 0;
-  const longitude = maxmindData?.location?.longitude || parseFloat(ipinfoData?.loc?.split(",")?.[1]) || 0;
+  const country = ipApiData?.country || "Unknown";
+  const countryCode = ipApiData?.countryCode || "XX";
+  const city = ipApiData?.city || "Unknown";
+  const region = ipApiData?.region || city;
+  const latitude = ipApiData?.lat || 0;
+  const longitude = ipApiData?.lon || 0;
+  const organization = ipApiData?.org || "Unknown";
+  const isp = ipApiData?.isp || "Unknown";
+  const asn = ipApiData?.as?.split(" ")?.[0] || "Unknown";
+  const timezone = ipApiData?.timezone || "UTC";
   
-  const organization = ipinfoData?.org?.split(" ").slice(1).join(" ") || whoisData?.result?.registrar || "Unknown";
-  const isp = organization;
-  const asn = maxmindData?.traits?.autonomous_system_number?.toString() || ipinfoData?.asn?.split(" ")?.[0] || "Unknown";
-  const timezone = maxmindData?.location?.time_zone || ipinfoData?.timezone || "UTC";
-  
-  // Threat calculation from AbuseIPDB
-  const abuseScore = abuseData?.abuseConfidenceScore || 0;
-  const totalReports = abuseData?.totalReports || 0;
-  const usageType = abuseData?.usageType || "unknown";
-  
-  let riskScore = Math.round(abuseScore);
-  const isVpn = usageType === "Data Center" || organization.toLowerCase().includes("vpn");
-  const isProxy = usageType === "Data Center" && totalReports > 0;
+  // VPN detection from organization, ISP and IP-API flags
+  const orgLower = organization.toLowerCase();
+  const ispLower = isp.toLowerCase();
+  const isVpnProvider = VPN_PROVIDERS.some(v => orgLower.includes(v.toLowerCase()) || ispLower.includes(v.toLowerCase()));
+  const isVpn = isVpnProvider || ipApiData?.proxy === true || orgLower.includes("vpn") || ispLower.includes("vpn") || orgLower.includes("datacenter") || ispLower.includes("datacenter");
+  const isProxy = ipApiData?.proxy === true || (abuseData?.usageType === "Data Center") || ispLower.includes("proxy");
   const isTor = abuseData?.isTor || false;
-  const isDatacenter = usageType === "Data Center" || usageType === "Content Delivery Network";
+  const isDatacenter = ipApiData?.hosting === true || orgLower.includes("aws") || orgLower.includes("azure") || orgLower.includes("google") || orgLower.includes("digitalocean");
   
-  if (isVpn) riskScore = Math.min(100, riskScore + 25);
-  if (isProxy) riskScore = Math.min(100, riskScore + 20);
-  if (isTor) riskScore = 100;
-  if (totalReports > 5) riskScore = Math.min(100, riskScore + 30);
+  let riskScore = 0;
+  if (isVpn) riskScore = 65;
+  if (isProxy) riskScore = Math.max(riskScore, 60);
+  if (isTor) riskScore = 95;
+  if (isDatacenter && !isVpn && !isProxy) riskScore = 35;
+  if (abuseData?.abuseConfidenceScore) riskScore = Math.max(riskScore, Math.round(abuseData.abuseConfidenceScore * 0.9));
+  if (abuseData?.totalReports > 3) riskScore = Math.min(100, riskScore + 15);
   
+  riskScore = Math.min(100, Math.max(0, riskScore));
   const threatLevel = getThreatLevelFromScore(riskScore);
   
   return {
@@ -278,25 +226,17 @@ export async function registerRoutes(
         }
       }
       
-      // Fetch from all APIs in parallel
-      const [abuseData, maxmindData, ipinfoData, whoisData] = await Promise.all([
+      // Fetch from free IP-API and optional AbuseIPDB
+      const [ipApiData, abuseData] = await Promise.all([
+        fetchIPAPI(ipAddress),
         fetchAbuseIPDB(ipAddress),
-        fetchMaxMind(ipAddress),
-        fetchIPInfo(ipAddress),
-        fetchWhoisXML(ipAddress),
       ]);
       
-      const hasRealData = !!(abuseData || maxmindData || ipinfoData);
+      const hasRealData = !!ipApiData;
       
       let analysisData: InsertIpAnalysis;
       if (hasRealData) {
-        analysisData = await generateRealAnalysis(
-          ipAddress,
-          abuseData,
-          maxmindData,
-          ipinfoData,
-          whoisData
-        );
+        analysisData = await generateRealAnalysis(ipAddress, ipApiData, abuseData);
       } else {
         // Fallback to mock
         analysisData = {
