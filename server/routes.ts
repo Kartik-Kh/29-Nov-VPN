@@ -18,6 +18,13 @@ const MAXMIND_KEY = process.env.MAXMIND_API_KEY;
 const IPINFO_KEY = process.env.IPINFO_API_KEY;
 const WHOISXML_KEY = process.env.WHOISXML_API_KEY;
 
+console.log("API Keys loaded:", {
+  abuseipdb: !!ABUSEIPDB_KEY,
+  maxmind: !!MAXMIND_KEY,
+  ipinfo: !!IPINFO_KEY,
+  whoisxml: !!WHOISXML_KEY,
+});
+
 // Redis for caching (optional)
 let redis: Redis | null = null;
 try {
@@ -40,12 +47,14 @@ const CACHE_TTL = 3600; // 1 hour
 
 // Fetch real data from 4 APIs
 async function fetchAbuseIPDB(ip: string) {
-  if (!ABUSEIPDB_KEY) return null;
+  if (!ABUSEIPDB_KEY) {
+    console.log("AbuseIPDB: No API key");
+    return null;
+  }
   try {
     const params = new URLSearchParams();
     params.append("ipAddress", ip);
     params.append("maxAgeInDays", "90");
-    params.append("verbose", "");
     
     const res = await fetch("https://api.abuseipdb.com/api/v2/check", {
       method: "POST",
@@ -56,47 +65,79 @@ async function fetchAbuseIPDB(ip: string) {
       },
       body: params.toString(),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.log(`AbuseIPDB error: ${res.status} - ${res.statusText}`);
+      return null;
+    }
     const data = await res.json();
+    console.log(`AbuseIPDB success for ${ip}:`, data.data);
     return data.data || null;
-  } catch {
+  } catch (e) {
+    console.error("AbuseIPDB fetch error:", e);
     return null;
   }
 }
 
 async function fetchMaxMind(ip: string) {
-  if (!MAXMIND_KEY) return null;
+  if (!MAXMIND_KEY) {
+    console.log("MaxMind: No API key");
+    return null;
+  }
   try {
     const res = await fetch(`https://geoip.maxmind.com/geoip/v2.1/city/${ip}`, {
       headers: { Authorization: `Basic ${Buffer.from(`account_id:${MAXMIND_KEY}`).toString("base64")}` },
     });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
+    if (!res.ok) {
+      console.log(`MaxMind error: ${res.status} - ${res.statusText}`);
+      return null;
+    }
+    const data = await res.json();
+    console.log(`MaxMind success for ${ip}:`, data);
+    return data;
+  } catch (e) {
+    console.error("MaxMind fetch error:", e);
     return null;
   }
 }
 
 async function fetchIPInfo(ip: string) {
-  if (!IPINFO_KEY) return null;
+  if (!IPINFO_KEY) {
+    console.log("IPInfo: No API key");
+    return null;
+  }
   try {
     const res = await fetch(`https://ipinfo.io/${ip}?token=${IPINFO_KEY}`);
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
+    if (!res.ok) {
+      console.log(`IPInfo error: ${res.status} - ${res.statusText}`);
+      return null;
+    }
+    const data = await res.json();
+    console.log(`IPInfo success for ${ip}:`, data);
+    return data;
+  } catch (e) {
+    console.error("IPInfo fetch error:", e);
     return null;
   }
 }
 
 async function fetchWhoisXML(ip: string) {
-  if (!WHOISXML_KEY) return null;
+  if (!WHOISXML_KEY) {
+    console.log("WhoisXML: No API key");
+    return null;
+  }
   try {
     const res = await fetch(
       `https://ip-whois-api.whoisxmlapi.com/api/v1?apiKey=${WHOISXML_KEY}&ipv4=${ip}`
     );
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
+    if (!res.ok) {
+      console.log(`WhoisXML error: ${res.status} - ${res.statusText}`);
+      return null;
+    }
+    const data = await res.json();
+    console.log(`WhoisXML success for ${ip}:`, data);
+    return data;
+  } catch (e) {
+    console.error("WhoisXML fetch error:", e);
     return null;
   }
 }
