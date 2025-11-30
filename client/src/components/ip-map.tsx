@@ -1,7 +1,6 @@
-import { useEffect, useRef } from "react";
-import L from "leaflet";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MapPin } from "lucide-react";
+import { MapPin, ExternalLink, Locate } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface IpMapProps {
   latitude?: number | null;
@@ -12,56 +11,15 @@ interface IpMapProps {
 }
 
 export function IpMap({ latitude, longitude, city, country, ipAddress }: IpMapProps) {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
-
   const hasLocation = latitude != null && longitude != null;
   const lat = latitude ?? 0;
   const lng = longitude ?? 0;
 
-  useEffect(() => {
-    if (!hasLocation || !mapRef.current) return;
+  const locationLabel = [city, country].filter(Boolean).join(", ") || "Unknown Location";
 
-    // Destroy previous map instance
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.remove();
-    }
-
-    // Create new map instance
-    const map = L.map(mapRef.current).setView([lat, lng], 10);
-
-    // Add CartoDB tiles
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/positron/{z}/{x}/{y}{r}.png", {
-      attribution: "&copy; CartoDB",
-      maxZoom: 19,
-    }).addTo(map);
-
-    // Add marker
-    const markerIcon = L.icon({
-      iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-      iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-      shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41],
-    });
-
-    const marker = L.marker([lat, lng], { icon: markerIcon }).addTo(map);
-    const locationLabel = [city, country].filter(Boolean).join(", ") || "Unknown Location";
-    marker.bindPopup(
-      `<div class="text-sm"><p class="font-semibold">${ipAddress}</p><p>${locationLabel}</p><p class="text-xs mt-1">${lat.toFixed(4)}, ${lng.toFixed(4)}</p></div>`
-    );
-
-    mapInstanceRef.current = map;
-
-    return () => {
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
-    };
-  }, [lat, lng, hasLocation, ipAddress, city, country]);
+  const googleMapsUrl = `https://www.google.com/maps/search/${lat},${lng}`;
+  const openStreetMapUrl = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=12`;
+  const appleMapUrl = `https://maps.apple.com/?q=${lat},${lng}`;
 
   if (!hasLocation) {
     return (
@@ -92,12 +50,68 @@ export function IpMap({ latitude, longitude, city, country, ipAddress }: IpMapPr
           Geographic Location
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <div
-          ref={mapRef}
-          className="h-[300px] lg:h-[400px] rounded-md overflow-hidden bg-muted"
-          data-testid="map-container"
-        />
+      <CardContent className="space-y-6">
+        <div className="bg-muted rounded-lg p-6 space-y-4">
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-muted-foreground">IP Address</p>
+            <p className="text-lg font-mono font-semibold">{ipAddress}</p>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-muted-foreground">Location</p>
+            <div className="flex items-center gap-2">
+              <Locate className="h-4 w-4 text-primary" />
+              <p className="text-lg font-semibold">{locationLabel}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Latitude</p>
+              <p className="text-sm font-mono font-semibold">{lat.toFixed(4)}°</p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Longitude</p>
+              <p className="text-sm font-mono font-semibold">{lng.toFixed(4)}°</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-muted-foreground">View on Map</p>
+          <div className="flex flex-col gap-2">
+            <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer">
+              <Button 
+                variant="outline" 
+                className="w-full justify-between"
+                data-testid="button-google-maps"
+              >
+                <span>Google Maps</span>
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </a>
+            <a href={openStreetMapUrl} target="_blank" rel="noopener noreferrer">
+              <Button 
+                variant="outline" 
+                className="w-full justify-between"
+                data-testid="button-openstreetmap"
+              >
+                <span>OpenStreetMap</span>
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </a>
+            <a href={appleMapUrl} target="_blank" rel="noopener noreferrer">
+              <Button 
+                variant="outline" 
+                className="w-full justify-between"
+                data-testid="button-apple-maps"
+              >
+                <span>Apple Maps</span>
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </a>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
