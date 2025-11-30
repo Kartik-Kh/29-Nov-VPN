@@ -51,14 +51,19 @@ try {
 
 const CACHE_TTL = 3600; // 1 hour
 
-// IPInfo - Free geolocation
+// IPInfo - Free geolocation (returns data in English)
 async function fetchIPGeolocation(ip: string) {
   try {
     const res = await fetch(`https://ipinfo.io/${ip}?token=a91115dbbe7daf`);
     if (!res.ok) return null;
     const data = await res.json();
+    // IPInfo returns English by default
     console.log(`✓ IPInfo for ${ip}:`, { country: data.country, city: data.city, org: data.org });
-    return data;
+    return {
+      ...data,
+      city: data.city || "Unknown",
+      region: data.region || "Unknown",
+    };
   } catch (e) {
     return null;
   }
@@ -107,15 +112,25 @@ async function fetchPyProxy(ip: string) {
   }
 }
 
-// APIIP - Geolocation and VPN detection
+// APIIP - Geolocation and VPN detection (returns data in English)
 async function fetchAPIIP(ip: string) {
   if (!APIIP_KEY) return null;
   try {
-    const res = await fetch(`https://apiip.net/api/check?ip=${ip}&apiKey=${APIIP_KEY}`);
+    const res = await fetch(`https://apiip.net/api/check?ip=${ip}&apiKey=${APIIP_KEY}&format=json`);
     if (!res.ok) return null;
     const data = await res.json();
     console.log(`✓ APIIP for ${ip}:`, { country: data.country_name, city: data.city, isVpn: data.is_vpn });
-    return data;
+    return {
+      country: data.country_name,
+      city: data.city || "Unknown",
+      region: data.state_name || data.state || "Unknown",
+      timezone: data.time_zone,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      org: data.isp,
+      is_vpn: data.is_vpn,
+      is_proxy: data.is_proxy,
+    };
   } catch (e) {
     return null;
   }
