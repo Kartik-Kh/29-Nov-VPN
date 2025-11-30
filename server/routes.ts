@@ -468,5 +468,90 @@ export async function registerRoutes(
     }
   });
 
+  // Bulk IP analysis
+  app.post("/api/bulk-analyze", validateRequest(z.object({
+    ips: z.array(z.string()).min(1).max(100),
+  })), async (req, res) => {
+    try {
+      const { ips } = req.body;
+      const validIps = ips.filter(ip => isValidIpAddress(ip));
+      
+      if (validIps.length === 0) {
+        return res.status(400).json({ error: "No valid IP addresses provided" });
+      }
+
+      const analyses: any[] = [];
+      
+      for (const ip of validIps) {
+        try {
+          // Check cache first
+          let cacheKey = `analysis:${ip}`;
+          let cached = null;
+          if (redis) {
+            try {
+              cached = await redis.get(cacheKey);
+            } catch (e) {
+              // Continue if cache fails
+            }
+          }
+          
+          if (cached) {
+            analyses.push(JSON.parse(cached));
+            continue;
+          }
+
+          // Fetch from APIs
+          const [geoData, abuseData, pyProxyData, apiipData] = await Promise.all([
+            fetchIPGeolocation(ip),
+            fetchAbuseIPDB(ip),
+            fetchPyProxy(ip),
+            fetchAPIIP(ip),
+          ]);
+
+          const analysisData = await generateRealAnalysis(ip, geoData, abuseData, pyProxyData, apiipData);
+          const analysis = await storage.createAnalysis(analysisData);
+          const whois = await storage.createWhoisRecord({
+            ipAddress: ip,
+            domain: null,
+            registrar: "Unknown",
+            registrantName: "Network Administrator",
+            registrantOrg: analysisData.organization,
+            registrantCountry: analysisData.countryCode,
+            createdDate: "",
+            updatedDate: "",
+            expiresDate: null,
+            nameServers: [],
+            netRange: `${ip}/24`,
+            netName: `NET-${ip.split(".").slice(0, 2).join("-")}`,
+            netHandle: "HANDLE-0000",
+            originAs: analysisData.asn,
+            abuseContact: "",
+            techContact: "",
+            fetchedAt: new Date(),
+          });
+
+          const result = { analysis, whois, cached: false, source: "real" };
+          if (redis) {
+            try {
+              await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
+            } catch (e) {
+              // Continue if cache fails
+            }
+          }
+          
+          analyses.push(result);
+        } catch (ipError) {
+          console.error(`Error analyzing ${ip}:`, ipError);
+          // Continue with next IP
+        }
+      }
+
+      res.json({ analyses, total: validIps.length, completed: analyses.length });
+    } catch (error) {
+      console.error("Bulk analysis error:", error);
+      res.status(500).json({ error: "Failed to perform bulk analysis" });
+    }
+  });
+
   return httpServer;
 }

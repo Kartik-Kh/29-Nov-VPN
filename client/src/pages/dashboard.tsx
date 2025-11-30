@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { IpInputForm } from "@/components/ip-input-form";
+import { BulkUpload } from "@/components/bulk-upload";
 import { RiskScoreGauge } from "@/components/risk-score-gauge";
 import { DetectionStatusCard } from "@/components/detection-status-card";
 import { IpMap } from "@/components/ip-map";
@@ -8,6 +9,7 @@ import { WhoisAccordion } from "@/components/whois-accordion";
 import { HistoryTable } from "@/components/history-table";
 import { QuickStats } from "@/components/quick-stats";
 import { RecentScans } from "@/components/recent-scans";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
@@ -172,10 +174,26 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 lg:gap-8">
           <div className="space-y-6">
-            <IpInputForm
-              onAnalyze={handleAnalyze}
-              isLoading={analyzeMutation.isPending}
-            />
+            <Tabs defaultValue="single" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="single" data-testid="tab-single-ip">Single IP</TabsTrigger>
+                <TabsTrigger value="bulk" data-testid="tab-bulk-ips">Bulk Upload</TabsTrigger>
+              </TabsList>
+              <TabsContent value="single" className="space-y-6">
+                <IpInputForm
+                  onAnalyze={handleAnalyze}
+                  isLoading={analyzeMutation.isPending}
+                />
+              </TabsContent>
+              <TabsContent value="bulk" className="space-y-6">
+                <BulkUpload
+                  onComplete={() => {
+                    queryClient.invalidateQueries({ queryKey: ["/api/analyses"] });
+                    queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+                  }}
+                />
+              </TabsContent>
+            </Tabs>
 
             {analyzeMutation.isPending && (
               <Card>
