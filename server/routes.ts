@@ -159,7 +159,8 @@ const HOSTING_PROVIDERS = [
 const VPN_HOSTING_PROVIDERS = [
   "Zenlayer", "Softlayer", "Equinix", "Packet", "Vultr", "DigitalOcean", "OVH",
   "Datacamp", "Contabo", "M247", "BudgetVM", "Nocix", "Ryukish", "VPS.ag",
-  "ColoCrossing", "Leaseweb", "Cogent", "Voxility", "VHoster"
+  "ColoCrossing", "Leaseweb", "Cogent", "Voxility", "VHoster",
+  "The Constant Company", "ConstantCompany", "Constant Company", "AS20473"
 ];
 
 // Generate analysis from real data
