@@ -482,7 +482,7 @@ export async function registerRoutes(
 
       const analyses: any[] = [];
       
-      for (const ip of validIps) {
+      for (const ip of validIps as string[]) {
         try {
           // Check cache first
           let cacheKey = `analysis:${ip}`;
