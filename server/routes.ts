@@ -64,6 +64,28 @@ async function fetchIPGeolocation(ip: string) {
   }
 }
 
+// GeoIP-DB - Alternative geolocation
+async function fetchGeoIPDB(ip: string) {
+  try {
+    const res = await fetch(`https://geolite.maxmind.com/geoip/v2.1/city/${ip}?pretty=1`, {
+      headers: {
+        Accept: "application/json",
+      },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return {
+      country: data.country?.iso_code,
+      city: data.city?.names?.en,
+      loc: `${data.location?.latitude},${data.location?.longitude}`,
+      timezone: data.location?.time_zone,
+      org: data.traits?.organization_name,
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
 // PyProxy - VPN/Proxy detection
 async function fetchPyProxy(ip: string) {
   if (!PYPROXY_ACCESS_KEY || !PYPROXY_ACCESS_SECRET) return null;
@@ -160,7 +182,9 @@ const VPN_HOSTING_PROVIDERS = [
   "Zenlayer", "Softlayer", "Equinix", "Packet", "Vultr", "DigitalOcean", "OVH",
   "Datacamp", "Contabo", "M247", "BudgetVM", "Nocix", "Ryukish", "VPS.ag",
   "ColoCrossing", "Leaseweb", "Cogent", "Voxility", "VHoster",
-  "The Constant Company", "ConstantCompany", "Constant Company", "AS20473"
+  "The Constant Company", "ConstantCompany", "Constant Company", "AS20473",
+  "Hop One Networks", "HopOne", "Hop One", "AS397391", "Astec", "Telia Company",
+  "DigitalOcean", "Vultr", "Linode", "Akamai", "Fastly"
 ];
 
 // Generate analysis from real data
@@ -328,6 +352,13 @@ export async function registerRoutes(
         fetchAPIIP(ipAddress),
         fetchWhoisXML(ipAddress),
       ]);
+      
+      // Use fallback geolocation if primary data is insufficient
+      let finalGeoData = geoData;
+      if (!geoData && !apiipData) {
+        const geoDbData = await fetchGeoIPDB(ipAddress);
+        if (geoDbData) finalGeoData = geoDbData;
+      }
       
       const hasRealData = !!geoData || !!apiipData;
       
@@ -516,7 +547,7 @@ export async function registerRoutes(
             fetchAPIIP(ip),
           ]);
 
-          const analysisData = await generateRealAnalysis(ip, geoData, abuseData, pyProxyData, apiipData);
+          const analysisData = await generateRealAnalysis(ip, finalGeoData, abuseData, pyProxyData, apiipData);
           const analysis = await storage.createAnalysis(analysisData);
           const whois = await storage.createWhoisRecord({
             ipAddress: ip,
