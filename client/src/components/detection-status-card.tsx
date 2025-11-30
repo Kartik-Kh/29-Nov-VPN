@@ -9,6 +9,7 @@ import {
   Clock,
   Network,
   Shield,
+  Zap,
 } from "lucide-react";
 
 interface DetectionStatusCardProps {
@@ -29,6 +30,11 @@ function getThreatBadgeVariant(level: ThreatLevel): "default" | "secondary" | "d
 
 export function DetectionStatusCard({ analysis }: DetectionStatusCardProps) {
   const metadataItems = [
+    ...(analysis.isVpn && analysis.vpnProvider ? [{
+      icon: Zap,
+      label: "VPN Provider",
+      value: analysis.vpnProvider,
+    }] : []),
     {
       icon: Building2,
       label: "ISP",

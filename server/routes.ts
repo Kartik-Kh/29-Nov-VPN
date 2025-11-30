@@ -547,7 +547,14 @@ export async function registerRoutes(
             fetchAPIIP(ip),
           ]);
 
-          const analysisData = await generateRealAnalysis(ip, finalGeoData, abuseData, pyProxyData, apiipData);
+          // Use fallback geolocation if primary data is insufficient
+          let bulkGeoData = geoData;
+          if (!geoData && !apiipData) {
+            const geoDbData = await fetchGeoIPDB(ip);
+            if (geoDbData) bulkGeoData = geoDbData;
+          }
+
+          const analysisData = await generateRealAnalysis(ip, bulkGeoData, abuseData, pyProxyData, apiipData);
           const analysis = await storage.createAnalysis(analysisData);
           const whois = await storage.createWhoisRecord({
             ipAddress: ip,
