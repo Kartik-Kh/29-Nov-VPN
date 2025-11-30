@@ -136,13 +136,15 @@ async function fetchAbuseIPDB(ip: string) {
 const VPN_PROVIDERS = [
   "NordVPN", "ExpressVPN", "Surfshark", "ProtonVPN", "CyberGhost",
   "IPVanish", "Private Internet Access", "PIA", "Windscribe", "TunnelBear",
-  "Turbo VPN", "HotspotShield", "VyprVPN", "StrongVPN", "Mullvad", "turbo",
+  "Turbo VPN", "TurboVPN", "HotspotShield", "VyprVPN", "StrongVPN", "Mullvad", "turbo",
   "IVPN", "PureVPN", "SaferVPN", "VPN Gate", "Astrill", "Bitdefender VPN",
   "Avast VPN", "AVG VPN", "McAfee VPN", "Norton VPN", "Perfect Privacy",
   "Freedome", "Hotspot Shield", "Hide My Ass", "HMA", "VPNBook",
   "VPNGate", "Psiphon", "UltraVPN", "VPNArea", "ibVPN", "SlickVPN",
-  "PureVPN", "CyberVPN", "VPN.com", "FastVPN", "VPNSecure", "BTGuard",
-  "SecureVPN", "VPNUnlimited", "IronSocket", "ZenMate", "VPNMaster", "KeepSolid"
+  "CyberVPN", "VPN.com", "FastVPN", "VPNSecure", "BTGuard",
+  "SecureVPN", "VPNUnlimited", "IronSocket", "ZenMate", "VPNMaster", "KeepSolid",
+  "Betternet", "Touch VPN", "Thunder VPN", "Snap VPN", "Free VPN", "ProxyMaster",
+  "VPN Master", "Unblock", "Browsec", "ZenVPN", "UFO VPN"
 ];
 
 // Hosting/datacenter providers
