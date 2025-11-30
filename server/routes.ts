@@ -165,7 +165,13 @@ async function generateRealAnalysis(ip: string, geoData: any, abuseData: any, py
   const ipVersion = getIpVersion(ip) || "IPv4";
   
   // Parse location data from multiple sources
-  const loc = (geoData?.loc || apiipData?.latitude ? `${apiipData?.latitude},${apiipData?.longitude}` : "0,0").split(",") || [0, 0];
+  let locStr = "0,0";
+  if (geoData?.loc) {
+    locStr = geoData.loc;
+  } else if (apiipData?.latitude && apiipData?.longitude) {
+    locStr = `${apiipData.latitude},${apiipData.longitude}`;
+  }
+  const loc = locStr.split(",");
   const country = geoData?.country || apiipData?.country_name || "Unknown";
   const countryCode = country;
   const city = geoData?.city || apiipData?.city || "Unknown";
@@ -290,8 +296,9 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Invalid IP address" });
       }
       
-      // Check Redis cache first
-      if (redis) {
+      // Check Redis cache first (skip if fresh=true)
+      const isFresh = req.query.fresh === "true";
+      if (!isFresh && redis) {
         const cacheKey = `analysis:${ipAddress}`;
         try {
           const cached = await redis.get(cacheKey);
@@ -364,11 +371,11 @@ export async function registerRoutes(
         fetchedAt: new Date(),
       });
       
-      // Cache result in Redis if available
-      const result = { analysis, whois, cached: false, source: hasRealData ? "real" : "mock" };
+      // Cache the result in Redis
+      const result = { analysis, whois, cached: false, source: "real" };
       if (redis) {
+        const cacheKey = `analysis:${ipAddress}`;
         try {
-          const cacheKey = `analysis:${ipAddress}`;
           await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result));
         } catch {
           // Continue if cache fails
