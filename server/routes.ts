@@ -418,6 +418,31 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to delete analysis" });
     }
   });
+
+  // Clear Redis cache endpoint
+  app.post("/api/clear-cache", async (_req, res) => {
+    try {
+      if (redis) {
+        await redis.flushdb();
+        console.log("✓ Redis cache cleared");
+      }
+      res.json({ success: true, message: "Cache cleared" });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to clear cache" });
+    }
+  });
+
+  // Clear Redis cache on server startup (after connection ready)
+  if (redis) {
+    redis.on("ready", async () => {
+      try {
+        await redis!.flushdb();
+        console.log("✓ Redis cache cleared on startup");
+      } catch (e) {
+        console.log("⚠ Failed to clear Redis on startup:", e);
+      }
+    });
+  }
   
   app.get("/api/stats", async (_req, res) => {
     try {
