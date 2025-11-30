@@ -1,18 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { useEffect, useRef } from "react";
 import L from "leaflet";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MapPin } from "lucide-react";
-
-const markerIcon = new L.Icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
 
 interface IpMapProps {
   latitude?: number | null;
@@ -22,20 +11,57 @@ interface IpMapProps {
   ipAddress: string;
 }
 
-function MapUpdater({ latitude, longitude }: { latitude: number; longitude: number }) {
-  const map = useMap();
-  
-  useEffect(() => {
-    map.setView([latitude, longitude], 10, { animate: true });
-  }, [map, latitude, longitude]);
-  
-  return null;
-}
-
 export function IpMap({ latitude, longitude, city, country, ipAddress }: IpMapProps) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+
   const hasLocation = latitude != null && longitude != null;
   const lat = latitude ?? 0;
   const lng = longitude ?? 0;
+
+  useEffect(() => {
+    if (!hasLocation || !mapRef.current) return;
+
+    // Destroy previous map instance
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.remove();
+    }
+
+    // Create new map instance
+    const map = L.map(mapRef.current).setView([lat, lng], 10);
+
+    // Add CartoDB tiles
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/positron/{z}/{x}/{y}{r}.png", {
+      attribution: "&copy; CartoDB",
+      maxZoom: 19,
+    }).addTo(map);
+
+    // Add marker
+    const markerIcon = L.icon({
+      iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+      iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+      shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41],
+    });
+
+    const marker = L.marker([lat, lng], { icon: markerIcon }).addTo(map);
+    const locationLabel = [city, country].filter(Boolean).join(", ") || "Unknown Location";
+    marker.bindPopup(
+      `<div class="text-sm"><p class="font-semibold">${ipAddress}</p><p>${locationLabel}</p><p class="text-xs mt-1">${lat.toFixed(4)}, ${lng.toFixed(4)}</p></div>`
+    );
+
+    mapInstanceRef.current = map;
+
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, [lat, lng, hasLocation, ipAddress, city, country]);
 
   if (!hasLocation) {
     return (
@@ -58,8 +84,6 @@ export function IpMap({ latitude, longitude, city, country, ipAddress }: IpMapPr
     );
   }
 
-  const locationLabel = [city, country].filter(Boolean).join(", ") || "Unknown Location";
-
   return (
     <Card>
       <CardHeader className="pb-4">
@@ -69,35 +93,11 @@ export function IpMap({ latitude, longitude, city, country, ipAddress }: IpMapPr
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div 
-          className="h-[300px] lg:h-[400px] rounded-md overflow-hidden"
+        <div
+          ref={mapRef}
+          className="h-[300px] lg:h-[400px] rounded-md overflow-hidden bg-muted"
           data-testid="map-container"
-        >
-          <MapContainer
-            key={`${lat}-${lng}`}
-            center={[lat, lng]}
-            zoom={10}
-            scrollWheelZoom={true}
-            style={{ height: "100%", width: "100%" }}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://cartodb.com/">CartoDB</a>'
-              url="https://{s}.basemaps.cartocdn.com/positron/{z}/{x}/{y}{r}.png"
-            />
-            <Marker position={[lat, lng]} icon={markerIcon}>
-              <Popup>
-                <div className="text-sm">
-                  <p className="font-semibold font-mono">{ipAddress}</p>
-                  <p className="text-muted-foreground">{locationLabel}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {lat.toFixed(4)}, {lng.toFixed(4)}
-                  </p>
-                </div>
-              </Popup>
-            </Marker>
-            <MapUpdater latitude={lat} longitude={lng} />
-          </MapContainer>
-        </div>
+        />
       </CardContent>
     </Card>
   );
