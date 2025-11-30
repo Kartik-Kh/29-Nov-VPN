@@ -74,6 +74,7 @@ export function IpMap({ latitude, longitude, city, country, ipAddress }: IpMapPr
           data-testid="map-container"
         >
           <MapContainer
+            key={`${lat}-${lng}`}
             center={[lat, lng]}
             zoom={10}
             scrollWheelZoom={true}
