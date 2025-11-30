@@ -182,8 +182,15 @@ async function generateRealAnalysis(ip: string, geoData: any, abuseData: any, py
   const latitude = parseFloat(loc[0]) || 0;
   const longitude = parseFloat(loc[1]) || 0;
   const organization = geoData?.org || "Unknown";
+  
+  // Extract ASN from organization if it starts with "AS" (e.g., "AS20473 Company Name")
+  let asn = geoData?.asn || "Unknown";
+  if (asn === "Unknown" && organization.startsWith("AS")) {
+    const asnMatch = organization.match(/^(AS\d+)/);
+    if (asnMatch) asn = asnMatch[1];
+  }
+  
   const isp = geoData?.isp || organization.split(" ").slice(1).join(" ") || "Unknown";
-  const asn = geoData?.asn || "Unknown";
   const timezone = geoData?.timezone || "UTC";
   
   // VPN/Proxy detection from multiple sources
