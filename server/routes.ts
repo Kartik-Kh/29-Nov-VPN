@@ -140,7 +140,9 @@ const VPN_PROVIDERS = [
   "IVPN", "PureVPN", "SaferVPN", "VPN Gate", "Astrill", "Bitdefender VPN",
   "Avast VPN", "AVG VPN", "McAfee VPN", "Norton VPN", "Perfect Privacy",
   "Freedome", "Hotspot Shield", "Hide My Ass", "HMA", "VPNBook",
-  "VPNGate", "Psiphon", "UltraVPN", "VPNArea", "ibVPN", "SlickVPN"
+  "VPNGate", "Psiphon", "UltraVPN", "VPNArea", "ibVPN", "SlickVPN",
+  "PureVPN", "CyberVPN", "VPN.com", "FastVPN", "VPNSecure", "BTGuard",
+  "SecureVPN", "VPNUnlimited", "IronSocket", "ZenMate", "VPNMaster", "KeepSolid"
 ];
 
 // Hosting/datacenter providers
@@ -153,7 +155,9 @@ const HOSTING_PROVIDERS = [
 
 // Hosting providers commonly used by VPN services
 const VPN_HOSTING_PROVIDERS = [
-  "Zenlayer", "Softlayer", "Equinix", "Packet", "Vultr", "DigitalOcean", "OVH"
+  "Zenlayer", "Softlayer", "Equinix", "Packet", "Vultr", "DigitalOcean", "OVH",
+  "Datacamp", "Contabo", "M247", "BudgetVM", "Nocix", "Ryukish", "VPS.ag",
+  "ColoCrossing", "Leaseweb", "Cogent", "Voxility", "VHoster"
 ];
 
 // Generate analysis from real data
