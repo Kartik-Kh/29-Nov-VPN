@@ -51,6 +51,31 @@ try {
 
 const CACHE_TTL = 3600; // 1 hour
 
+// German to English location mapping
+const GERMAN_TO_ENGLISH_REGIONS: Record<string, string> = {
+  "Baden-Württemberg": "Baden-Württemberg",
+  "Bayern": "Bavaria",
+  "Berlin": "Berlin",
+  "Brandenburg": "Brandenburg",
+  "Bremen": "Bremen",
+  "Hamburg": "Hamburg",
+  "Hessen": "Hesse",
+  "Mecklenburg-Vorpommern": "Mecklenburg-Western Pomerania",
+  "Niedersachsen": "Lower Saxony",
+  "Nordrhein-Westfalen": "North Rhine-Westphalia",
+  "Rheinland-Pfalz": "Rhineland-Palatinate",
+  "Saarland": "Saarland",
+  "Sachsen": "Saxony",
+  "Sachsen-Anhalt": "Saxony-Anhalt",
+  "Schleswig-Holstein": "Schleswig-Holstein",
+  "Thüringen": "Thuringia",
+};
+
+function translateRegionToEnglish(region: string | undefined): string {
+  if (!region) return "Unknown";
+  return GERMAN_TO_ENGLISH_REGIONS[region] || region;
+}
+
 // IPInfo - Free geolocation (returns data in English)
 async function fetchIPGeolocation(ip: string) {
   try {
@@ -217,7 +242,7 @@ async function generateRealAnalysis(ip: string, geoData: any, abuseData: any, py
   const country = geoData?.country || apiipData?.country_name || "Unknown";
   const countryCode = country;
   const city = geoData?.city || apiipData?.city || "Unknown";
-  const region = geoData?.region || city;
+  const region = translateRegionToEnglish(geoData?.region) || city;
   const latitude = parseFloat(loc[0]) || 0;
   const longitude = parseFloat(loc[1]) || 0;
   const organization = geoData?.org || "Unknown";
